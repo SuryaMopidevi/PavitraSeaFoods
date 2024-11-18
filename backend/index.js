@@ -17,6 +17,8 @@ const Order=require("./models/orders.js");
 const Address = require('./models/address.js');
 const reviews = require('./models/reviews.js');
 const Query = require('./models/query.js');
+const MongoStore = require('connect-mongo');
+const ContactUs = require('./models/contactUs.js');
 
 
 const app = express();
@@ -28,24 +30,35 @@ const pass = process.env.password
 const jwtSecret = process.env.jwtSecret
 const token = process.env.token || '1m'
 const session_Secret_key =process.env.SESSION_SECRET
+
+// CORS Configuration
 app.use(cors({
-  origin: 'http://localhost:3007', // Frontend URL
+  origin: ['http://localhost:3007', 'http://localhost:3009'], // Replace with actual URLs for admin and user
   credentials: true, // Enable cookies and sessions
 }));
 
+// Body Parser Middleware
 app.use(bodyParser.json());
 
+// Logging Middleware
 app.use((req, res, next) => {
   console.log(req.url);
   next();
 });
 
-// Setup sessions
+// Setup sessions using connect-mongo
 app.use(session({
   secret: session_Secret_key, // Use the secret from environment variable
   resave: false,
-  saveUninitialized: true,
-  cookie: { secure: false } // Set to true if using HTTPS
+  saveUninitialized: false,
+  store: MongoStore.create({
+    mongoUrl: url, // MongoDB connection URI
+    collectionName: 'sessions', // Collection to store session data
+  }),
+  cookie: {
+    secure: false, // Set to true if using HTTPS
+    maxAge: 1000 * 60 * 60 * 1, // 1 hour
+  }
 }));
 
 // Logout route
@@ -59,6 +72,7 @@ app.post('/logout', (req, res) => {
     return res.status(200).send({ message: 'Logged out successfully' });
   });
 });
+
 
 const transporter = nodemailer.createTransport({
     service: 'gmail',
@@ -173,6 +187,38 @@ app.post('/sendUrl', async (req, res) => {
 });
 
 //contact us
+app.post('/contactUs', async (req, res) => {
+  // console.log(req.body)
+  await ContactUs.create(req.body)
+      .then((e) => {
+          res.send(true)
+      })
+      .catch((e) => {
+          res.send(false)
+      })
+})
+app.get('/getContactUs', async (req, res) => {
+  try {
+      let data = await ContactUs.find({});
+      // console.log(data)
+      res.send(data);
+  } catch (error) {
+      console.error(error);
+      res.status(500).send('Internal Server Error');
+  }
+});
+// Backend route (in your Express server)
+app.delete('/deleteContact/:id', async (req, res) => {
+  try {
+      const { id } = req.params;
+      await ContactUs.deleteOne({ _id: id });
+      res.status(200).send({ message: "Contact deleted successfully" });
+  } catch (error) {
+      console.error(error);
+      res.status(500).send("Internal Server Error");
+  }
+});
+
 
 app.post('/sendQuery', async (req, res) => {
   // console.log(req.body)
